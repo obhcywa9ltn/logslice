@@ -2,86 +2,114 @@
 
 import argparse
 import sys
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import datetime
+from typing import Optional, Tuple
 
 from logslice.filter import filter_entries
+from logslice.formatter import format_entries, SUPPORTED_FORMATS
 from logslice.parser import iter_log_entries
 
 
-DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
-
-
 def parse_datetime(value: str) -> datetime:
-    """Parse an ISO-like datetime string and attach UTC timezone."""
-    try:
-        dt = datetime.strptime(value, DATETIME_FORMAT)
-        return dt.replace(tzinfo=timezone.utc)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            f"Invalid datetime '{value}'. Expected format: {DATETIME_FORMAT}"
-        ) from exc
+    """Parse a datetime string in ISO 8601 format."""
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+    raise argparse.ArgumentTypeError(
+        f"Invalid datetime '{value}'. Expected format: YYYY-MM-DDTHH:MM:SS"
+    )
 
 
-def parse_pattern(value: str):
+def parse_pattern(value: str) -> Tuple[str, str]:
     """Parse a field=pattern argument into a (field, pattern) tuple."""
     if "=" not in value:
         raise argparse.ArgumentTypeError(
-            f"Pattern '{value}' must be in field=regex format."
+            f"Invalid pattern '{value}'. Expected format: field=pattern"
         )
     field, _, pattern = value.partition("=")
-    return (field.strip(), pattern.strip())
+    if not field:
+        raise argparse.ArgumentTypeError(
+            f"Invalid pattern '{value}': field name cannot be empty."
+        )
+    return field, pattern
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
+    """Build and return the CLI argument parser."""
+    parser = argparse.ArgumentParser(
         prog="logslice",
         description="Extract and filter structured JSON logs by time range and field patterns.",
     )
-    p.add_argument(
+    parser.add_argument(
         "file",
         nargs="?",
-        default="-",
-        help="Log file to read (default: stdin).",
+        help="Path to the log file. Reads from stdin if omitted.",
     )
-    p.add_argument("--start", type=parse_datetime, metavar="DATETIME", help="Start of time range.")
-    p.add_argument("--end", type=parse_datetime, metavar="DATETIME", help="End of time range.")
-    p.add_argument(
+    parser.add_argument(
+        "--start",
+        type=parse_datetime,
+        metavar="DATETIME",
+        help="Include entries at or after this datetime (ISO 8601).",
+    )
+    parser.add_argument(
+        "--end",
+        type=parse_datetime,
+        metavar="DATETIME",
+        help="Include entries at or before this datetime (ISO 8601).",
+    )
+    parser.add_argument(
         "--match",
-        dest="patterns",
         type=parse_pattern,
         action="append",
         metavar="FIELD=PATTERN",
-        help="Field pattern filter (repeatable).",
+        dest="patterns",
+        help="Filter by field value using a regex pattern. Can be repeated.",
     )
-    return p
+    parser.add_argument(
+        "--format",
+        choices=SUPPORTED_FORMATS,
+        default="json",
+        dest="fmt",
+        help="Output format (default: json).",
+    )
+    parser.add_argument(
+        "--fields",
+        nargs="+",
+        metavar="FIELD",
+        help="Fields to include in compact output.",
+    )
+    return parser
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    args = build_parser().parse_args(argv)
+def main(argv: Optional[list] = None) -> int:
+    """Entry point for the logslice CLI."""
+    parser = build_parser()
+    args = parser.parse_args(argv)
 
-    if args.file == "-":
-        source = sys.stdin
-    else:
+    if args.file:
         try:
-            source = open(args.file, "r", encoding="utf-8")  # noqa: WPS515
+            source = open(args.file, "r", encoding="utf-8")
         except OSError as exc:
-            print(f"logslice: error opening file: {exc}", file=sys.stderr)
+            print(f"logslice: error: {exc}", file=sys.stderr)
             return 1
+    else:
+        source = sys.stdin
 
     try:
-        entries = iter_log_entries(source)
-        results = filter_entries(
+        entries = list(iter_log_entries(source))
+        patterns = dict(args.patterns) if args.patterns else None
+        filtered = filter_entries(
             entries,
-            patterns=args.patterns,
             start=args.start,
             end=args.end,
+            field_patterns=patterns,
         )
-        import json
-        for entry in results:
-            print(json.dumps(entry, default=str))
+        for line in format_entries(filtered, fmt=args.fmt, fields=args.fields):
+            print(line)
     finally:
-        if args.file != "-":
+        if args.file:
             source.close()
 
     return 0
