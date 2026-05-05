@@ -1,15 +1,21 @@
-"""logslice — lightweight JSON log parser and filter."""
+"""logslice — lightweight structured log parser and filter."""
 
-from logslice.filter import filter_entries, filter_by_time_range, match_field_patterns
-from logslice.parser import iter_log_entries, parse_log_line, parse_timestamp
+from logslice.parser import parse_log_line, iter_log_entries
+from logslice.filter import filter_entries
+from logslice.formatter import format_entries
+from logslice.writer import write_entries
+from logslice.stats import compute_stats
+from logslice.sampler import sample_entries
+from logslice.deduplicator import deduplicate_entries, count_duplicates
 
 __all__ = [
-    "filter_entries",
-    "filter_by_time_range",
-    "match_field_patterns",
-    "iter_log_entries",
     "parse_log_line",
-    "parse_timestamp",
+    "iter_log_entries",
+    "filter_entries",
+    "format_entries",
+    "write_entries",
+    "compute_stats",
+    "sample_entries",
+    "deduplicate_entries",
+    "count_duplicates",
 ]
-
-__version__ = "0.1.0"
