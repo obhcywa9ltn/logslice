@@ -49,7 +49,16 @@ def write_to_path(
 ) -> int:
     """Convenience wrapper: open *path* (or stdout) and write entries.
 
-    Returns the number of entries written.
+    Args:
+        entries: Iterable of parsed log entry dicts.
+        path:    Destination file path, or ``None`` to write to stdout.
+        fmt:     One of ``'json'``, ``'pretty'``, or ``'compact'``.
+
+    Returns:
+        The number of entries written.
+
+    Raises:
+        OSError: If *path* cannot be opened for writing.
     """
     stream = open_output(path)
     try:
