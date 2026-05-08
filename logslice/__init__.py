@@ -1,55 +1,55 @@
-"""logslice — lightweight structured log parser, filter, and processor."""
+"""logslice — A lightweight log parser that extracts and filters structured JSON logs.
 
-from importlib.metadata import PackageNotFoundError, version
+Public re-exports for the most commonly used symbols across all modules.
+"""
 
-try:
-    __version__ = version("logslice")
-except PackageNotFoundError:  # pragma: no cover
-    __version__ = "0.0.0"
-
-from logslice.aggregator import count_by_field, format_aggregation, group_by_field, top_values
-from logslice.deduplicator import count_duplicates, deduplicate_entries
-from logslice.enricher import enrich_entries, enrich_entry
-from logslice.exporter import export_as_csv, export_as_ndjson, export_as_tsv, export_entries
-from logslice.filter import filter_by_time_range, filter_entries, match_field_patterns
+from logslice.parser import parse_log_line, iter_log_entries, parse_timestamp
+from logslice.filter import filter_entries, filter_by_time_range, match_field_patterns
 from logslice.formatter import (
-    format_entries,
-    format_entry_compact,
     format_entry_json,
     format_entry_pretty,
+    format_entry_compact,
+    format_entries,
 )
-from logslice.parser import iter_log_entries, parse_log_line, parse_timestamp
-from logslice.pipeline import build_pipeline
-from logslice.redactor import redact_entries, redact_entry
-from logslice.sampler import head_entries, sample_entries, sample_every_nth
-from logslice.schema import Schema, validate_entry
+from logslice.writer import write_entries, write_to_path
 from logslice.stats import compute_stats, format_stats
+from logslice.sampler import sample_entries, sample_every_nth, head_entries
+from logslice.deduplicator import deduplicate_entries, count_duplicates
+from logslice.redactor import redact_entry, redact_entries
+from logslice.aggregator import group_by_field, count_by_field, top_values
 from logslice.transformer import (
-    add_fields,
-    drop_fields,
-    rename_fields,
-    transform_entries,
     transform_entry,
+    rename_fields,
+    drop_fields,
+    add_fields,
+    transform_entries,
 )
-from logslice.writer import open_output, write_entries, write_to_path
+from logslice.pipeline import build_pipeline
+from logslice.exporter import export_entries
+from logslice.schema import Schema, validate_entry, is_valid
+from logslice.enricher import enrich_entry, enrich_entries
+from logslice.highlighter import highlight_entry
+from logslice.sorter import sort_entries, sort_by_timestamp
+from logslice.splitter import split_by_field, split_by_predicate, split_by_rules
+from logslice.router import Router, build_router
+from logslice.merger import merge_entries, merge_all
+from logslice.truncator import truncate_entry, truncate_entries
 
 __all__ = [
-    "__version__",
     # parser
-    "parse_timestamp",
     "parse_log_line",
     "iter_log_entries",
+    "parse_timestamp",
     # filter
-    "match_field_patterns",
-    "filter_by_time_range",
     "filter_entries",
+    "filter_by_time_range",
+    "match_field_patterns",
     # formatter
     "format_entry_json",
     "format_entry_pretty",
     "format_entry_compact",
     "format_entries",
     # writer
-    "open_output",
     "write_entries",
     "write_to_path",
     # stats
@@ -69,7 +69,6 @@ __all__ = [
     "group_by_field",
     "count_by_field",
     "top_values",
-    "format_aggregation",
     # transformer
     "transform_entry",
     "rename_fields",
@@ -79,14 +78,30 @@ __all__ = [
     # pipeline
     "build_pipeline",
     # exporter
-    "export_as_ndjson",
-    "export_as_csv",
-    "export_as_tsv",
     "export_entries",
     # schema
     "Schema",
     "validate_entry",
+    "is_valid",
     # enricher
     "enrich_entry",
     "enrich_entries",
+    # highlighter
+    "highlight_entry",
+    # sorter
+    "sort_entries",
+    "sort_by_timestamp",
+    # splitter
+    "split_by_field",
+    "split_by_predicate",
+    "split_by_rules",
+    # router
+    "Router",
+    "build_router",
+    # merger
+    "merge_entries",
+    "merge_all",
+    # truncator
+    "truncate_entry",
+    "truncate_entries",
 ]
