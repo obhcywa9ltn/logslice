@@ -1,144 +1,90 @@
-"""checkpoint.py — Track and resume log processing positions.
-
-Provides utilities for saving and loading byte-offset checkpoints so that
-long-running or repeated logslice runs can resume from where they left off
-rather than reprocessing an entire file from the start.
-"""
+"""checkpoint.py — Persist and restore file-read offsets for resumable log tailing."""
 
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
-# Default directory for checkpoint files when no explicit path is given.
-_DEFAULT_CHECKPOINT_DIR = Path(".logslice_checkpoints")
-
-# Schema version stored in every checkpoint file so future readers can
-# detect incompatible formats and warn accordingly.
-_SCHEMA_VERSION = 1
+_DEFAULT_DIR = os.path.join(os.path.expanduser("~"), ".logslice", "checkpoints")
 
 
-def _checkpoint_path(source: str, directory: Path) -> Path:
-    """Return the checkpoint file path for *source* inside *directory*.
-
-    The source string (typically a file path) is normalised to a safe
-    filename by replacing path separators and other special characters.
-    """
-    safe_name = source.replace(os.sep, "__").replace("/", "__").lstrip(".")
-    safe_name = safe_name or "_root"
-    return directory / f"{safe_name}.json"
+def _checkpoint_path(log_path: str, checkpoint_dir: str = _DEFAULT_DIR) -> str:
+    """Return the checkpoint file path for *log_path*."""
+    safe_name = Path(log_path).name.replace(os.sep, "_") + ".json"
+    return os.path.join(checkpoint_dir, safe_name)
 
 
 def save_checkpoint(
-    source: str,
+    log_path: str,
     offset: int,
-    *,
-    directory: Path = _DEFAULT_CHECKPOINT_DIR,
-    extra: Optional[Dict] = None,
-) -> Path:
-    """Persist a byte-offset checkpoint for *source*.
-
-    Parameters
-    ----------
-    source:
-        Identifier for the log source — usually an absolute or relative file
-        path but can be any string that uniquely names the stream.
-    offset:
-        The byte position in *source* up to which entries have been
-        successfully processed.
-    directory:
-        Directory in which checkpoint files are stored.  Created automatically
-        if it does not already exist.
-    extra:
-        Optional mapping of additional metadata to embed in the checkpoint
-        (e.g. last timestamp seen, entry count processed).
-
-    Returns
-    -------
-    Path
-        The path to the written checkpoint file.
-    """
-    if offset < 0:
-        raise ValueError(f"offset must be non-negative, got {offset}")
-
-    directory.mkdir(parents=True, exist_ok=True)
-    path = _checkpoint_path(source, directory)
-
-    payload: Dict = {
-        "_version": _SCHEMA_VERSION,
-        "source": source,
-        "offset": offset,
-    }
+    checkpoint_dir: str = _DEFAULT_DIR,
+    extra: Optional[dict] = None,
+) -> str:
+    """Persist *offset* for *log_path*; return the checkpoint file path."""
+    cp_path = _checkpoint_path(log_path, checkpoint_dir)
+    os.makedirs(os.path.dirname(cp_path), exist_ok=True)
+    payload: dict = {"log_path": log_path, "offset": offset}
     if extra:
-        payload["extra"] = extra
-
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return path
+        payload.update(extra)
+    with open(cp_path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh)
+    return cp_path
 
 
 def load_checkpoint(
-    source: str,
-    *,
-    directory: Path = _DEFAULT_CHECKPOINT_DIR,
-) -> Optional[Dict]:
-    """Load the checkpoint for *source*, returning ``None`` if none exists.
-
-    Parameters
-    ----------
-    source:
-        The same identifier used when :func:`save_checkpoint` was called.
-    directory:
-        Directory to search for checkpoint files.
-
-    Returns
-    -------
-    dict or None
-        The full checkpoint payload (including ``offset`` and any ``extra``
-        keys) or ``None`` when no checkpoint file is found.
-    """
-    path = _checkpoint_path(source, directory)
-    if not path.exists():
+    log_path: str,
+    checkpoint_dir: str = _DEFAULT_DIR,
+) -> Optional[dict]:
+    """Load and return the checkpoint dict for *log_path*, or *None* if absent."""
+    cp_path = _checkpoint_path(log_path, checkpoint_dir)
+    if not os.path.exists(cp_path):
         return None
-
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        # Corrupt or unreadable checkpoint — treat as missing.
-        return None
-
-    if data.get("_version", 0) != _SCHEMA_VERSION:
-        # Incompatible format; caller should reprocess from the start.
-        return None
-
-    return data
+    with open(cp_path, "r", encoding="utf-8") as fh:
+        try:
+            return json.load(fh)
+        except json.JSONDecodeError:
+            return None
 
 
 def get_offset(
-    source: str,
-    *,
-    directory: Path = _DEFAULT_CHECKPOINT_DIR,
+    log_path: str,
+    checkpoint_dir: str = _DEFAULT_DIR,
     default: int = 0,
 ) -> int:
-    """Return the saved byte offset for *source*, or *default* if absent."""
-    checkpoint = load_checkpoint(source, directory=directory)
+    """Return the saved byte offset for *log_path*, or *default* if none exists."""
+    checkpoint = load_checkpoint(log_path, checkpoint_dir)
     if checkpoint is None:
         return default
     return int(checkpoint.get("offset", default))
 
 
 def delete_checkpoint(
-    source: str,
-    *,
-    directory: Path = _DEFAULT_CHECKPOINT_DIR,
+    log_path: str,
+    checkpoint_dir: str = _DEFAULT_DIR,
 ) -> bool:
-    """Remove the checkpoint file for *source*.
-
-    Returns ``True`` if a file was deleted, ``False`` if none existed.
-    """
-    path = _checkpoint_path(source, directory)
-    if path.exists():
-        path.unlink()
+    """Delete the checkpoint for *log_path*. Return True if it existed."""
+    cp_path = _checkpoint_path(log_path, checkpoint_dir)
+    if os.path.exists(cp_path):
+        os.remove(cp_path)
         return True
     return False
+
+
+def list_checkpoints(checkpoint_dir: str = _DEFAULT_DIR) -> list[str]:
+    """Return a sorted list of log paths that have saved checkpoints."""
+    if not os.path.isdir(checkpoint_dir):
+        return []
+    results = []
+    for fname in sorted(os.listdir(checkpoint_dir)):
+        if fname.endswith(".json"):
+            full = os.path.join(checkpoint_dir, fname)
+            data = load_checkpoint.__wrapped__ if hasattr(load_checkpoint, "__wrapped__") else None
+            try:
+                with open(full, "r", encoding="utf-8") as fh:
+                    payload = json.load(fh)
+                results.append(payload.get("log_path", fname))
+            except (json.JSONDecodeError, OSError):
+                pass
+    return results
