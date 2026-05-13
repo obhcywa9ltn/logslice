@@ -1,157 +1,179 @@
-"""logslice — lightweight structured log parser, filter, and processor.
+"""logslice — lightweight structured log parser and processor.
 
-Public re-exports for convenience.
+Public re-exports for the most commonly used symbols across the package.
 """
 
-from logslice.aggregator import count_by_field, format_aggregation, group_by_field, top_values
-from logslice.annotator import annotate_entries, annotate_entry
-from logslice.checkpoint import delete_checkpoint, load_checkpoint, save_checkpoint
-from logslice.correlator import (
-    correlation_summary,
-    find_by_correlation_id,
-    group_by_correlation_id,
-    iter_correlated,
-)
-from logslice.deduplicator import count_duplicates, deduplicate_entries
-from logslice.enricher import enrich_entries, enrich_entry
-from logslice.exporter import export_as_csv, export_as_ndjson, export_as_tsv, export_entries
-from logslice.filter import filter_by_time_range, filter_entries, match_field_patterns
+from logslice.parser import parse_log_line, iter_log_entries, parse_timestamp
+from logslice.filter import filter_entries, filter_by_time_range, match_field_patterns
 from logslice.formatter import (
-    format_entries,
-    format_entry_compact,
     format_entry_json,
     format_entry_pretty,
+    format_entry_compact,
+    format_entries,
 )
-from logslice.highlighter import highlight_entry, highlight_level, highlight_pattern
-from logslice.limiter import counts_by_field, limit_by_field, limit_total
-from logslice.masker import mask_entries, mask_entry
-from logslice.merger import merge_all, merge_entries
-from logslice.parser import iter_log_entries, parse_log_line, parse_timestamp
-from logslice.pipeline import build_pipeline
-from logslice.ratelimiter import count_by_bucket, rate_limit_entries
-from logslice.redactor import redact_entries, redact_entry
-from logslice.router import Router, build_router
-from logslice.sampler import head_entries, sample_entries, sample_every_nth
-from logslice.schema import Schema, validate_entry
-from logslice.sorter import sort_by_timestamp, sort_entries
-from logslice.splitter import split_by_field, split_by_predicate, split_by_rules
+from logslice.writer import write_entries, write_to_path, open_output
 from logslice.stats import compute_stats, format_stats
-from logslice.tagger import build_rule, filter_by_tag, tag_entries, tag_entry
+from logslice.sampler import sample_entries, sample_every_nth, head_entries
+from logslice.deduplicator import deduplicate_entries, count_duplicates
+from logslice.redactor import redact_entry, redact_entries
+from logslice.aggregator import group_by_field, count_by_field, top_values, format_aggregation
 from logslice.transformer import (
-    add_fields,
-    drop_fields,
-    rename_fields,
-    transform_entries,
     transform_entry,
+    rename_fields,
+    drop_fields,
+    add_fields,
+    transform_entries,
 )
-from logslice.truncator import truncate_entries, truncate_entry, truncate_value
+from logslice.pipeline import build_pipeline
+from logslice.exporter import export_as_ndjson, export_as_csv, export_as_tsv, export_entries
+from logslice.schema import Schema, FieldSpec, validate_entry, is_valid
+from logslice.enricher import enrich_entry, enrich_entries
+from logslice.highlighter import highlight_entry, highlight_level, highlight_pattern
+from logslice.sorter import sort_entries, sort_by_timestamp
+from logslice.splitter import split_by_field, split_by_predicate, split_by_rules
+from logslice.router import Router, build_router
+from logslice.merger import merge_entries, merge_all
+from logslice.truncator import truncate_entry, truncate_entries, truncate_value
+from logslice.ratelimiter import rate_limit_entries, count_by_bucket
+from logslice.annotator import annotate_entry, annotate_entries
+from logslice.checkpoint import save_checkpoint, load_checkpoint, get_offset, delete_checkpoint
 from logslice.watchdog import tail_file, watch_entries
-from logslice.writer import open_output, write_entries, write_to_path
+from logslice.limiter import limit_by_field, limit_total
+from logslice.correlator import (
+    group_by_correlation_id,
+    iter_correlated,
+    find_by_correlation_id,
+    correlation_summary,
+)
+from logslice.masker import mask_entry, mask_entries
+from logslice.tagger import tag_entry, tag_entries, build_rule as build_tag_rule, filter_by_tag
+from logslice.alerter import check_entry, alert_entries, build_rule as build_alert_rule
+from logslice.notifier import console_notifier, collecting_notifier, json_notifier
+from logslice.alert_pipeline import build_alert_pipeline, run_and_report, monitored_pipeline
+from logslice.batcher import batch_by_size, batch_by_time, flatten_batches
 
 __all__ = [
-    # aggregator
-    "count_by_field",
-    "format_aggregation",
-    "group_by_field",
-    "top_values",
-    # annotator
-    "annotate_entries",
-    "annotate_entry",
-    # checkpoint
-    "delete_checkpoint",
-    "load_checkpoint",
-    "save_checkpoint",
-    # correlator
-    "correlation_summary",
-    "find_by_correlation_id",
-    "group_by_correlation_id",
-    "iter_correlated",
-    # deduplicator
-    "count_duplicates",
-    "deduplicate_entries",
-    # enricher
-    "enrich_entries",
-    "enrich_entry",
-    # exporter
-    "export_as_csv",
-    "export_as_ndjson",
-    "export_as_tsv",
-    "export_entries",
+    # parser
+    "parse_log_line",
+    "iter_log_entries",
+    "parse_timestamp",
     # filter
-    "filter_by_time_range",
     "filter_entries",
+    "filter_by_time_range",
     "match_field_patterns",
     # formatter
-    "format_entries",
-    "format_entry_compact",
     "format_entry_json",
     "format_entry_pretty",
+    "format_entry_compact",
+    "format_entries",
+    # writer
+    "write_entries",
+    "write_to_path",
+    "open_output",
+    # stats
+    "compute_stats",
+    "format_stats",
+    # sampler
+    "sample_entries",
+    "sample_every_nth",
+    "head_entries",
+    # deduplicator
+    "deduplicate_entries",
+    "count_duplicates",
+    # redactor
+    "redact_entry",
+    "redact_entries",
+    # aggregator
+    "group_by_field",
+    "count_by_field",
+    "top_values",
+    "format_aggregation",
+    # transformer
+    "transform_entry",
+    "rename_fields",
+    "drop_fields",
+    "add_fields",
+    "transform_entries",
+    # pipeline
+    "build_pipeline",
+    # exporter
+    "export_as_ndjson",
+    "export_as_csv",
+    "export_as_tsv",
+    "export_entries",
+    # schema
+    "Schema",
+    "FieldSpec",
+    "validate_entry",
+    "is_valid",
+    # enricher
+    "enrich_entry",
+    "enrich_entries",
     # highlighter
     "highlight_entry",
     "highlight_level",
     "highlight_pattern",
-    # limiter
-    "counts_by_field",
-    "limit_by_field",
-    "limit_total",
-    # masker
-    "mask_entries",
-    "mask_entry",
-    # merger
-    "merge_all",
-    "merge_entries",
-    # parser
-    "iter_log_entries",
-    "parse_log_line",
-    "parse_timestamp",
-    # pipeline
-    "build_pipeline",
-    # ratelimiter
-    "count_by_bucket",
-    "rate_limit_entries",
-    # redactor
-    "redact_entries",
-    "redact_entry",
-    # router
-    "Router",
-    "build_router",
-    # sampler
-    "head_entries",
-    "sample_entries",
-    "sample_every_nth",
-    # schema
-    "Schema",
-    "validate_entry",
     # sorter
-    "sort_by_timestamp",
     "sort_entries",
+    "sort_by_timestamp",
     # splitter
     "split_by_field",
     "split_by_predicate",
     "split_by_rules",
-    # stats
-    "compute_stats",
-    "format_stats",
-    # tagger
-    "build_rule",
-    "filter_by_tag",
-    "tag_entries",
-    "tag_entry",
-    # transformer
-    "add_fields",
-    "drop_fields",
-    "rename_fields",
-    "transform_entries",
-    "transform_entry",
+    # router
+    "Router",
+    "build_router",
+    # merger
+    "merge_entries",
+    "merge_all",
     # truncator
-    "truncate_entries",
     "truncate_entry",
+    "truncate_entries",
     "truncate_value",
+    # ratelimiter
+    "rate_limit_entries",
+    "count_by_bucket",
+    # annotator
+    "annotate_entry",
+    "annotate_entries",
+    # checkpoint
+    "save_checkpoint",
+    "load_checkpoint",
+    "get_offset",
+    "delete_checkpoint",
     # watchdog
     "tail_file",
     "watch_entries",
-    # writer
-    "open_output",
-    "write_entries",
-    "write_to_path",
+    # limiter
+    "limit_by_field",
+    "limit_total",
+    # correlator
+    "group_by_correlation_id",
+    "iter_correlated",
+    "find_by_correlation_id",
+    "correlation_summary",
+    # masker
+    "mask_entry",
+    "mask_entries",
+    # tagger
+    "tag_entry",
+    "tag_entries",
+    "build_tag_rule",
+    "filter_by_tag",
+    # alerter
+    "check_entry",
+    "alert_entries",
+    "build_alert_rule",
+    # notifier
+    "console_notifier",
+    "collecting_notifier",
+    "json_notifier",
+    # alert_pipeline
+    "build_alert_pipeline",
+    "run_and_report",
+    "monitored_pipeline",
+    # batcher
+    "batch_by_size",
+    "batch_by_time",
+    "flatten_batches",
 ]
