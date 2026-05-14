@@ -48,9 +48,24 @@ def build_pipeline(
         fmt:              Output format: "json", "pretty", or "compact".
         indent:           JSON indent level (only used when fmt=="json").
 
+    Raises:
+        ValueError: If sample_rate is provided but not in the range (0, 1].
+        ValueError: If fmt is not one of "json", "pretty", or "compact".
+
     Yields:
         Formatted log lines as strings.
     """
+    if sample_rate is not None and not (0 < sample_rate <= 1):
+        raise ValueError(
+            f"sample_rate must be in the range (0, 1], got {sample_rate!r}"
+        )
+
+    valid_formats = {"json", "pretty", "compact"}
+    if fmt not in valid_formats:
+        raise ValueError(
+            f"fmt must be one of {sorted(valid_formats)}, got {fmt!r}"
+        )
+
     stream: Iterable[Dict[str, Any]] = entries
 
     # 1. Filter
