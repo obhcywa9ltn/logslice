@@ -24,6 +24,10 @@ class Query:
     excludes: Dict[str, Any] = field(default_factory=dict)
     limit: Optional[int] = None
 
+    def __post_init__(self) -> None:
+        if self.limit is not None and self.limit < 0:
+            raise ValueError(f"limit must be a non-negative integer, got {self.limit}")
+
 
 def _matches(entry: Entry, query: Query) -> bool:
     """Return True when *entry* satisfies all filter and exclude clauses."""
