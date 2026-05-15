@@ -1,81 +1,99 @@
 # logslice
 
-A lightweight log parser that extracts and filters structured JSON logs by time range and field patterns.
-
-## Features
-
-- **Parse** — read NDJSON log streams line by line (`parser`)
-- **Filter** — narrow entries by time range and field regex patterns (`filter`)
-- **Format** — render entries as JSON, pretty-printed, or compact text (`formatter`)
-- **Write** — stream output to stdout or a file (`writer`)
-- **Stats** — summarise a log stream (counts, levels, time span) (`stats`)
-- **Sample** — probabilistic or deterministic sub-sampling (`sampler`)
-- **Deduplicate** — remove repeated entries by content fingerprint (`deduplicator`)
-- **Redact** — strip sensitive fields before output (`redactor`)
-- **Aggregate** — group and count by any field (`aggregator`)
-- **Transform** — rename, drop, add, or map fields (`transformer`)
-- **Pipeline** — compose all steps into a single generator chain (`pipeline`)
-- **Export** — emit NDJSON, CSV, or TSV (`exporter`)
-- **Schema** — validate entries against a field specification (`schema`)
-- **Enrich** — attach computed or static fields (`enricher`)
-- **Highlight** — ANSI-colour entries for terminal output (`highlighter`)
-- **Sort** — order entries by timestamp or any field (`sorter`)
-- **Split** — partition a stream into named buckets (`splitter`)
-- **Route** — dispatch entries to multiple sinks by predicate (`router`)
-- **Merge** — interleave pre-sorted streams in timestamp order (`merger`)
-- **Truncate** — cap long field values to a maximum length (`truncator`)
-- **Rate-limit** — cap throughput per time bucket (`ratelimiter`)
-- **Annotate** — attach computed metadata under a namespace (`annotator`)
-- **Checkpoint** — persist and resume stream offsets (`checkpoint`)
-- **Watch** — tail a live log file and stream new entries (`watchdog`)
-- **Limit** — cap entries per field value or overall (`limiter`)
-- **Correlate** — group entries by a shared correlation ID (`correlator`)
-- **Mask** — partially obscure sensitive string values (`masker`)
-- **Tag** — label entries with user-defined tags based on field predicates (`tagger`)
+A lightweight log parser that extracts and filters structured JSON logs by time
+range and field patterns.
 
 ## Installation
 
 ```bash
-pip install -e .
+pip install logslice
 ```
 
 ## Quick start
 
-```bash
-# Filter by time range and level, output compact lines
-logslice --start 2024-01-01T00:00:00 --end 2024-01-02T00:00:00 \
-         --match level=error app.log
-
-# Tag entries and filter to a specific tag
-python - <<'EOF'
-from logslice import iter_log_entries, tag_entries, filter_by_tag, build_rule
-
-rules = [
-    build_rule("error", "level", "error"),
-    build_rule("slow", "duration_ms", 5000),
-]
+```python
+from logslice import iter_log_entries, filter_entries, diff_entries, format_diff
 
 with open("app.log") as fh:
-    entries = iter_log_entries(fh)
-    tagged  = tag_entries(entries, rules)
-    errors  = filter_by_tag(tagged, "error")
-    for entry in errors:
-        print(entry)
-EOF
+    entries = list(iter_log_entries(fh))
+
+# filter by time range and field patterns
+filtered = list(filter_entries(entries, patterns={"level": "error"}))
+
+# diff two log snapshots keyed by request-id
+for result in diff_entries(baseline, current, key_field="request_id",
+                            ignore_fields=["timestamp"]):
+    print(format_diff(result))
 ```
 
 ## CLI
 
-```
-usage: logslice [-h] [--start DATETIME] [--end DATETIME]
-                [--match FIELD=PATTERN] [--format {json,pretty,compact}]
-                [--output FILE]
-                [FILE ...]
-```
-
-## Development
-
 ```bash
-pip install -e ".[dev]"
-pytest
+logslice --start "2024-01-01T00:00:00" --end "2024-01-02T00:00:00" \
+         --pattern level=error app.log
 ```
+
+## Modules
+
+| Module | Purpose |
+|---|---|
+| `parser` | Parse raw log lines into entry dicts |
+| `filter` | Filter entries by time range / field patterns |
+| `formatter` | Render entries as JSON / pretty / compact |
+| `writer` | Write formatted entries to a file or stdout |
+| `stats` | Compute summary statistics over a stream |
+| `sampler` | Random sampling and head/tail helpers |
+| `deduplicator` | Remove duplicate entries by fingerprint |
+| `redactor` | Scrub sensitive fields |
+| `aggregator` | Group and count entries by field value |
+| `transformer` | Rename, drop, add, or transform fields |
+| `pipeline` | Compose processing steps into a single pipeline |
+| `exporter` | Export to NDJSON, CSV, or TSV |
+| `schema` | Validate entries against a field schema |
+| `enricher` | Add derived or static fields to entries |
+| `highlighter` | ANSI-colour entries for terminal output |
+| `sorter` | Sort entries by timestamp or arbitrary field |
+| `splitter` | Partition entries into named groups |
+| `router` | Route entries to multiple sinks by predicate |
+| `merger` | Merge sorted streams in timestamp order |
+| `truncator` | Truncate long field values |
+| `ratelimiter` | Bucket-based rate limiting |
+| `annotator` | Attach computed annotations to entries |
+| `checkpoint` | Persist and resume file-read positions |
+| `watchdog` | Tail log files for new entries in real time |
+| `limiter` | Cap entry counts per field value |
+| `correlator` | Group entries by correlation / trace ID |
+| `masker` | Partially mask sensitive string values |
+| `tagger` | Apply rule-based tags to entries |
+| `alerter` | Fire alerts when entries match rules |
+| `notifier` | Deliver alert notifications (console, JSON, …) |
+| `alert_pipeline` | High-level alert pipeline builder |
+| `batcher` | Batch entries by size or time window |
+| `profiler` | Measure throughput and elapsed time |
+| `indexer` | Build in-memory field indexes for fast lookup |
+| `query` | Structured query execution over entry streams |
+| `replayer` | Replay entries at original or scaled wall-clock speed |
+| `summarizer` | Generate human-readable stream summaries |
+| `classifier` | Classify entries with named predicate rules |
+| `differ` | Diff two entry streams and report added/removed/changed |
+
+## Differ
+
+The `differ` module compares two snapshots of log entries and yields
+`DiffResult` named-tuples describing what changed:
+
+```python
+from logslice.differ import diff_entries, format_diff
+
+for result in diff_entries(old_entries, new_entries,
+                            key_field="id",
+                            ignore_fields=["timestamp"]):
+    # result.status  -> 'added' | 'removed' | 'changed'
+    # result.key     -> the key field value
+    # result.changed_fields -> list of field names that differ
+    print(format_diff(result))
+```
+
+## License
+
+MIT
